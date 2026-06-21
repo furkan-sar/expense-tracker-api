@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: expense-tracker-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/expense_tracker}
+    username: ${DB_USERNAME:expense_tracker}
+    password: ${DB_PASSWORD:expense_tracker}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  servlet:
+    context-path: /api/v1
+
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:change-me-to-a-long-random-secret-before-running}
+      access-token-expiration: 15m
+      refresh-token-expiration: 30d
