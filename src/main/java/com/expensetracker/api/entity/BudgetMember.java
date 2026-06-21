@@ -1,6 +1,5 @@
 package com.expensetracker.api.entity;
 
-import com.expensetracker.api.dto.BudgetMemberRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
