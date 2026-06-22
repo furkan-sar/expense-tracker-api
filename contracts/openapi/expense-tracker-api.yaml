@@ -665,16 +665,14 @@ components:
       in: query
       required: false
       schema:
-        type: string
-        format: date
+        $ref: "#/components/schemas/ApiDate"
       description: Inclusive report or search start date.
     EndDateQuery:
       name: endDate
       in: query
       required: false
       schema:
-        type: string
-        format: date
+        $ref: "#/components/schemas/ApiDate"
       description: Inclusive report or search end date.
     PageQuery:
       name: page
@@ -745,6 +743,13 @@ components:
       format: date-time
       examples:
         - "2026-06-21T12:00:00Z"
+    ApiDate:
+      type: string
+      format: date
+      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      description: API date value in YYYY-MM-DD format. Flutter clients should collect this with a date picker and display it using the user's locale.
+      examples:
+        - "2026-06-21"
     MoneyAmount:
       type: number
       format: double
@@ -1132,8 +1137,7 @@ components:
         amount:
           $ref: "#/components/schemas/MoneyAmount"
         transactionDate:
-          type: string
-          format: date
+          $ref: "#/components/schemas/ApiDate"
         note:
           type:
             - string
@@ -1155,8 +1159,7 @@ components:
         amount:
           $ref: "#/components/schemas/MoneyAmount"
         transactionDate:
-          type: string
-          format: date
+          $ref: "#/components/schemas/ApiDate"
         note:
           type:
             - string
@@ -1189,8 +1192,7 @@ components:
         amount:
           $ref: "#/components/schemas/MoneyAmount"
         transactionDate:
-          type: string
-          format: date
+          $ref: "#/components/schemas/ApiDate"
         note:
           type:
             - string
@@ -1234,6 +1236,7 @@ components:
       additionalProperties: false
       required:
         - budgetGroupId
+        - budgetGroupName
         - startDate
         - endDate
         - totalIncome
@@ -1243,12 +1246,13 @@ components:
       properties:
         budgetGroupId:
           $ref: "#/components/schemas/Uuid"
+        budgetGroupName:
+          type: string
+          description: Human-readable budget group name for UI display. Clients must not show budgetGroupId to users.
         startDate:
-          type: string
-          format: date
+          $ref: "#/components/schemas/ApiDate"
         endDate:
-          type: string
-          format: date
+          $ref: "#/components/schemas/ApiDate"
         totalIncome:
           $ref: "#/components/schemas/MoneyAmount"
         totalExpense:
@@ -1263,12 +1267,19 @@ components:
       type: object
       additionalProperties: false
       required:
+        - budgetGroupId
+        - budgetGroupName
         - categoryId
         - categoryName
         - type
         - totalAmount
         - transactionCount
       properties:
+        budgetGroupId:
+          $ref: "#/components/schemas/Uuid"
+        budgetGroupName:
+          type: string
+          description: Human-readable budget group name for UI display. Clients must not show budgetGroupId to users.
         categoryId:
           $ref: "#/components/schemas/Uuid"
         categoryName:
@@ -1285,18 +1296,29 @@ components:
       type: object
       additionalProperties: false
       required:
+        - budgetGroupId
+        - budgetGroupName
         - memberId
         - userId
+        - displayName
         - firstName
         - lastName
         - totalIncome
         - totalExpense
         - transactionCount
       properties:
+        budgetGroupId:
+          $ref: "#/components/schemas/Uuid"
+        budgetGroupName:
+          type: string
+          description: Human-readable budget group name for UI display. Clients must not show budgetGroupId to users.
         memberId:
           $ref: "#/components/schemas/Uuid"
         userId:
           $ref: "#/components/schemas/Uuid"
+        displayName:
+          type: string
+          description: Human-readable member name for UI display. Clients must not show memberId or userId to users.
         firstName:
           type: string
         lastName:
@@ -1328,6 +1350,7 @@ components:
         - status
         - errorCode
         - message
+        - details
       properties:
         timestamp:
           $ref: "#/components/schemas/DateTime"
@@ -1346,5 +1369,6 @@ components:
           type: string
         details:
           type: array
+          description: Field-level or contextual details. Use an empty array when no details are available.
           items:
             $ref: "#/components/schemas/FieldError"
