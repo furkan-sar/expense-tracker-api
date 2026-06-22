@@ -1,5 +1,6 @@
 package com.expensetracker.api.security;
 
+import com.expensetracker.api.dto.ErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -9,7 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
-import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -25,11 +25,12 @@ public class RestAuthenticationEntryPoint implements org.springframework.securit
     ) throws IOException {
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType("application/json");
-        objectMapper.writeValue(response.getOutputStream(), Map.of(
-                "timestamp", OffsetDateTime.now().toString(),
-                "status", HttpStatus.UNAUTHORIZED.value(),
-                "errorCode", "INVALID_CREDENTIALS",
-                "message", "Authentication failed or token is invalid."
+        objectMapper.writeValue(response.getOutputStream(), new ErrorResponse(
+                OffsetDateTime.now(),
+                HttpStatus.UNAUTHORIZED.value(),
+                "INVALID_CREDENTIALS",
+                "Authentication failed or token is invalid.",
+                null
         ));
     }
 }

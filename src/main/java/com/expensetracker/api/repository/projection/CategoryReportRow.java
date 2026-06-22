@@ -1,17 +1,19 @@
 package com.expensetracker.api.repository.projection;
 
-import com.expensetracker.api.entity.TransactionType;
-
 import java.math.BigDecimal;
 import java.util.UUID;
 
 public interface CategoryReportRow {
 
+    UUID getBudgetGroupId();
+
+    String getBudgetGroupName();
+
     UUID getCategoryId();
 
     String getCategoryName();
 
-    TransactionType getType();
+    String getType();
 
     BigDecimal getTotalAmount();
 

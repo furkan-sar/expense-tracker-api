@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record SummaryReportResponse(
         UUID budgetGroupId,
+        String budgetGroupName,
         LocalDate startDate,
         LocalDate endDate,
         BigDecimal totalIncome,

@@ -87,6 +87,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     @Query(value = """
             select
+                t.budget_group_id as budgetGroupId,
+                bg.name as budgetGroupName,
                 c.id as categoryId,
                 c.name as categoryName,
                 t.type as type,
@@ -94,6 +96,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
                 count(t.id) as transactionCount
             from transactions t
             join categories c on c.id = t.category_id
+            join budget_groups bg on bg.id = t.budget_group_id
             where exists (
                 select 1
                 from budget_members bm
@@ -104,8 +107,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
               and (:startDate is null or t.transaction_date >= :startDate)
               and (:endDate is null or t.transaction_date <= :endDate)
               and (:type is null or t.type = cast(:type as varchar))
-            group by c.id, c.name, t.type
-            order by c.name asc, t.type asc
+            group by t.budget_group_id, bg.name, c.id, c.name, t.type
+            order by bg.name asc, c.name asc, t.type asc
             """, nativeQuery = true)
     java.util.List<CategoryReportRow> getCategoryReport(
             @Param("userId") UUID userId,
@@ -117,6 +120,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     @Query(value = """
             select
+                t.budget_group_id as budgetGroupId,
+                bg.name as budgetGroupName,
                 bm.id as memberId,
                 u.id as userId,
                 u.first_name as firstName,
@@ -127,6 +132,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             from transactions t
             join budget_members bm on bm.id = t.member_id
             join users u on u.id = bm.user_id
+            join budget_groups bg on bg.id = t.budget_group_id
             where exists (
                 select 1
                 from budget_members current_member
@@ -136,8 +142,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
               and (:budgetGroupId is null or t.budget_group_id = :budgetGroupId)
               and (:startDate is null or t.transaction_date >= :startDate)
               and (:endDate is null or t.transaction_date <= :endDate)
-            group by bm.id, u.id, u.first_name, u.last_name
-            order by u.first_name asc, u.last_name asc
+            group by t.budget_group_id, bg.name, bm.id, u.id, u.first_name, u.last_name
+            order by bg.name asc, u.first_name asc, u.last_name asc
             """, nativeQuery = true)
     java.util.List<MemberReportRow> getMemberReport(
             @Param("userId") UUID userId,

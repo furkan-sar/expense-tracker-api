@@ -5,6 +5,10 @@ import java.util.UUID;
 
 public interface MemberReportRow {
 
+    UUID getBudgetGroupId();
+
+    String getBudgetGroupName();
+
     UUID getMemberId();
 
     UUID getUserId();

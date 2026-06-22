@@ -45,6 +45,7 @@ public class ReportService {
 
         return new SummaryReportResponse(
                 budgetGroup.getId(),
+                budgetGroup.getName(),
                 effectiveStartDate,
                 effectiveEndDate,
                 totalIncome,
@@ -119,9 +120,11 @@ public class ReportService {
 
     private CategoryReportItem toCategoryReportItem(CategoryReportRow row) {
         return new CategoryReportItem(
+                row.getBudgetGroupId(),
+                row.getBudgetGroupName(),
                 row.getCategoryId(),
                 row.getCategoryName(),
-                TransactionType.valueOf(row.getType().name()),
+                TransactionType.valueOf(row.getType()),
                 amountOrZero(row.getTotalAmount()),
                 row.getTransactionCount()
         );
@@ -129,8 +132,11 @@ public class ReportService {
 
     private MemberReportItem toMemberReportItem(MemberReportRow row) {
         return new MemberReportItem(
+                row.getBudgetGroupId(),
+                row.getBudgetGroupName(),
                 row.getMemberId(),
                 row.getUserId(),
+                "%s %s".formatted(row.getFirstName(), row.getLastName()).trim(),
                 row.getFirstName(),
                 row.getLastName(),
                 amountOrZero(row.getTotalIncome()),
