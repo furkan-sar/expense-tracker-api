@@ -4,12 +4,11 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record CategoryReportItem(
-        UUID budgetGroupId,
-        String budgetGroupName,
         UUID categoryId,
         String categoryName,
-        TransactionType type,
+        TransactionType transactionType,
         BigDecimal totalAmount,
-        long transactionCount
+        BigDecimal percentage,
+        String currency
 ) {
 }

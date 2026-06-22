@@ -22,3 +22,7 @@ app:
       secret: ${JWT_SECRET:change-me-to-a-long-random-secret-before-running}
       access-token-expiration: 15m
       refresh-token-expiration: 30d
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] requestId=%X{requestId:-} %logger{36} - %msg%n"

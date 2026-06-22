@@ -14,6 +14,7 @@ import com.expensetracker.api.mapper.BudgetGroupMapper;
 import com.expensetracker.api.repository.BudgetGroupRepository;
 import com.expensetracker.api.repository.BudgetMemberRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class BudgetGroupService {
 
@@ -30,27 +32,43 @@ public class BudgetGroupService {
 
     @Transactional(readOnly = true)
     public List<BudgetGroupResponse> listBudgetGroups(User currentUser) {
-        return budgetGroupRepository.findAllByMemberUserId(currentUser.getId())
-                .stream()
-                .map(budgetGroupMapper::toResponse)
-                .toList();
+        log.info("service=BudgetGroupService action=listBudgetGroups start userId={}", currentUser.getId());
+        try {
+            List<BudgetGroupResponse> response = budgetGroupRepository.findAllByMemberUserId(currentUser.getId())
+                    .stream()
+                    .map(budgetGroupMapper::toResponse)
+                    .toList();
+            log.info("service=BudgetGroupService action=listBudgetGroups success count={}", response.size());
+            return response;
+        } catch (RuntimeException ex) {
+            log.error("service=BudgetGroupService action=listBudgetGroups failure userId={}", currentUser.getId(), ex);
+            throw ex;
+        }
     }
 
     @Transactional
     public BudgetGroupResponse createBudgetGroup(User currentUser, BudgetGroupCreateRequest request) {
-        BudgetGroup budgetGroup = new BudgetGroup();
-        budgetGroup.setName(request.name().trim());
-        budgetGroup.setDescription(normalizeNullable(request.description()));
-        budgetGroup.setCurrency(request.currency());
-        budgetGroup.setOwner(currentUser);
+        log.info("service=BudgetGroupService action=createBudgetGroup start userId={}", currentUser.getId());
+        try {
+            BudgetGroup budgetGroup = new BudgetGroup();
+            budgetGroup.setName(request.name().trim());
+            budgetGroup.setDescription(normalizeNullable(request.description()));
+            budgetGroup.setCurrency(request.currency());
+            budgetGroup.setOwner(currentUser);
 
-        BudgetMember ownerMember = new BudgetMember();
-        ownerMember.setBudgetGroup(budgetGroup);
-        ownerMember.setUser(currentUser);
-        ownerMember.setRole(BudgetMemberRole.OWNER);
-        budgetGroup.getMembers().add(ownerMember);
+            BudgetMember ownerMember = new BudgetMember();
+            ownerMember.setBudgetGroup(budgetGroup);
+            ownerMember.setUser(currentUser);
+            ownerMember.setRole(BudgetMemberRole.OWNER);
+            budgetGroup.getMembers().add(ownerMember);
 
-        return budgetGroupMapper.toResponse(budgetGroupRepository.save(budgetGroup));
+            BudgetGroupResponse response = budgetGroupMapper.toResponse(budgetGroupRepository.save(budgetGroup));
+            log.info("service=BudgetGroupService action=createBudgetGroup success budgetGroupId={}", response.id());
+            return response;
+        } catch (RuntimeException ex) {
+            log.error("service=BudgetGroupService action=createBudgetGroup failure userId={}", currentUser.getId(), ex);
+            throw ex;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -81,7 +99,7 @@ public class BudgetGroupService {
 
     private BudgetGroup requireBudgetGroup(UUID id) {
         return budgetGroupRepository.findByIdWithMembers(id)
-                .orElseThrow(() -> new NotFoundException("Budget group was not found."));
+                .orElseThrow(() -> new NotFoundException("Budget group was not found.", id == null ? null : id.toString()));
     }
 
     private void requireMemberAccess(BudgetGroup budgetGroup, User currentUser) {

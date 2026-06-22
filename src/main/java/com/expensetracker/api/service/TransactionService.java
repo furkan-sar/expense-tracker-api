@@ -16,7 +16,10 @@ import com.expensetracker.api.repository.BudgetGroupRepository;
 import com.expensetracker.api.repository.BudgetMemberRepository;
 import com.expensetracker.api.repository.CategoryRepository;
 import com.expensetracker.api.repository.TransactionRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -24,9 +27,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class TransactionService {
 
@@ -35,6 +41,9 @@ public class TransactionService {
     private final BudgetMemberRepository budgetMemberRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionMapper transactionMapper;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public TransactionPageResponse listTransactions(
@@ -47,42 +56,103 @@ public class TransactionService {
             int page,
             int size
     ) {
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "transactionDate", "createdAt"));
-        Page<Transaction> transactions = transactionRepository.findVisibleTransactions(
-                currentUser.getId(),
-                budgetGroupId,
-                categoryId,
-                toEntityType(type),
-                startDate,
-                endDate,
-                pageRequest
-        );
+        log.info("service=TransactionService action=listTransactions start userId={} budgetGroupId={} categoryId={} page={} size={}", currentUser.getId(), budgetGroupId, categoryId, page, size);
+        try {
+            if (budgetGroupId != null && !budgetMemberRepository.existsByBudgetGroupIdAndUserId(budgetGroupId, currentUser.getId())) {
+                throw new AuthorizationException("Authenticated user is not allowed to access this resource.");
+            }
+            PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "transactionDate", "createdAt"));
+            StringBuilder jpql = new StringBuilder("""
+                    select transaction
+                    from Transaction transaction
+                    where exists (
+                        select 1
+                        from BudgetMember currentMember
+                        where currentMember.budgetGroup = transaction.budgetGroup
+                          and currentMember.user.id = :userId
+                    )
+                    """);
+            if (budgetGroupId != null) {
+                jpql.append(" and transaction.budgetGroup.id = :budgetGroupId");
+            }
+            if (categoryId != null) {
+                jpql.append(" and transaction.category.id = :categoryId");
+            }
+            if (type != null) {
+                jpql.append(" and transaction.type = :type");
+            }
+            if (startDate != null) {
+                jpql.append(" and transaction.transactionDate >= :startDate");
+            }
+            if (endDate != null) {
+                jpql.append(" and transaction.transactionDate <= :endDate");
+            }
+            jpql.append(" order by transaction.transactionDate desc, transaction.createdAt desc");
 
-        return new TransactionPageResponse(
-                transactions.getContent().stream().map(transactionMapper::toResponse).toList(),
-                transactions.getNumber(),
-                transactions.getSize(),
-                transactions.getTotalElements(),
-                transactions.getTotalPages()
-        );
+            var query = entityManager.createQuery(jpql.toString(), Transaction.class);
+            query.setParameter("userId", currentUser.getId());
+            if (budgetGroupId != null) {
+                query.setParameter("budgetGroupId", budgetGroupId);
+            }
+            if (categoryId != null) {
+                query.setParameter("categoryId", categoryId);
+            }
+            if (type != null) {
+                query.setParameter("type", toEntityType(type));
+            }
+            if (startDate != null) {
+                query.setParameter("startDate", startDate);
+            }
+            if (endDate != null) {
+                query.setParameter("endDate", endDate);
+            }
+            List<Transaction> allResults = query.getResultList();
+            int total = allResults.size();
+            List<Transaction> content = allResults.stream()
+                    .skip(pageRequest.getOffset())
+                    .limit(pageRequest.getPageSize())
+                    .toList();
+            Page<Transaction> transactions = new org.springframework.data.domain.PageImpl<>(content, pageRequest, total);
+
+            TransactionPageResponse response = new TransactionPageResponse(
+                    transactions.getContent().stream().map(transactionMapper::toResponse).toList(),
+                    transactions.getNumber(),
+                    transactions.getSize(),
+                    transactions.getTotalElements(),
+                    transactions.getTotalPages()
+            );
+            log.info("service=TransactionService action=listTransactions success count={}", response.content().size());
+            return response;
+        } catch (RuntimeException ex) {
+            log.error("service=TransactionService action=listTransactions failure userId={}", currentUser.getId(), ex);
+            throw ex;
+        }
     }
 
     @Transactional
     public TransactionResponse createTransaction(User currentUser, TransactionCreateRequest request) {
-        BudgetGroup budgetGroup = requireBudgetGroup(request.budgetGroupId());
-        BudgetMember currentMember = requireMemberAccess(budgetGroup, currentUser);
-        Category category = requireCategoryInBudgetGroup(request.categoryId(), budgetGroup.getId());
+        log.info("service=TransactionService action=createTransaction start userId={} budgetGroupId={} categoryId={}", currentUser.getId(), request.budgetGroupId(), request.categoryId());
+        try {
+            BudgetGroup budgetGroup = requireBudgetGroup(request.budgetGroupId());
+            BudgetMember currentMember = requireMemberAccess(budgetGroup, currentUser);
+            Category category = requireCategoryInBudgetGroup(request.categoryId(), budgetGroup.getId());
 
-        Transaction transaction = new Transaction();
-        transaction.setBudgetGroup(budgetGroup);
-        transaction.setCategory(category);
-        transaction.setMember(currentMember);
-        transaction.setType(toEntityType(request.type()));
-        transaction.setAmount(request.amount());
-        transaction.setTransactionDate(request.transactionDate());
-        transaction.setNote(normalizeNullable(request.note()));
+            Transaction transaction = new Transaction();
+            transaction.setBudgetGroup(budgetGroup);
+            transaction.setCategory(category);
+            transaction.setMember(currentMember);
+            transaction.setType(toEntityType(request.type()));
+            transaction.setAmount(request.amount());
+            transaction.setTransactionDate(request.transactionDate());
+            transaction.setNote(normalizeNullable(request.note()));
 
-        return transactionMapper.toResponse(transactionRepository.save(transaction));
+            TransactionResponse response = transactionMapper.toResponse(transactionRepository.save(transaction));
+            log.info("service=TransactionService action=createTransaction success transactionId={}", response.id());
+            return response;
+        } catch (RuntimeException ex) {
+            log.error("service=TransactionService action=createTransaction failure budgetGroupId={} categoryId={}", request.budgetGroupId(), request.categoryId(), ex);
+            throw ex;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -116,12 +186,12 @@ public class TransactionService {
 
     private Transaction requireTransaction(UUID id) {
         return transactionRepository.findWithDetailsById(id)
-                .orElseThrow(() -> new NotFoundException("Transaction was not found."));
+                .orElseThrow(() -> new NotFoundException("Transaction was not found.", id == null ? null : id.toString()));
     }
 
     private BudgetGroup requireBudgetGroup(UUID budgetGroupId) {
         return budgetGroupRepository.findById(budgetGroupId)
-                .orElseThrow(() -> new NotFoundException("Budget group was not found."));
+                .orElseThrow(() -> new NotFoundException("Budget group was not found.", budgetGroupId == null ? null : budgetGroupId.toString()));
     }
 
     private BudgetMember requireMemberAccess(BudgetGroup budgetGroup, User currentUser) {
@@ -131,7 +201,7 @@ public class TransactionService {
 
     private Category requireCategoryInBudgetGroup(UUID categoryId, UUID budgetGroupId) {
         return categoryRepository.findByIdAndBudgetGroupId(categoryId, budgetGroupId)
-                .orElseThrow(() -> new NotFoundException("Category was not found."));
+                .orElseThrow(() -> new NotFoundException("Category was not found.", categoryId == null ? null : categoryId.toString()));
     }
 
     private com.expensetracker.api.entity.TransactionType toEntityType(com.expensetracker.api.dto.TransactionType type) {

@@ -12,6 +12,7 @@ public record SummaryReportResponse(
         BigDecimal totalIncome,
         BigDecimal totalExpense,
         BigDecimal balance,
-        String currency
+        String currency,
+        BigDecimal savingsRate
 ) {
 }

@@ -14,6 +14,7 @@ import com.expensetracker.api.repository.BudgetGroupRepository;
 import com.expensetracker.api.repository.BudgetMemberRepository;
 import com.expensetracker.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class BudgetMemberService {
 
@@ -31,33 +33,48 @@ public class BudgetMemberService {
 
     @Transactional(readOnly = true)
     public List<BudgetMemberResponse> listBudgetMembers(User currentUser, UUID budgetGroupId) {
-        BudgetGroup budgetGroup = requireBudgetGroup(budgetGroupId);
-        requireMemberAccess(budgetGroup, currentUser);
-
-        return budgetMemberRepository.findAllByBudgetGroupIdWithUser(budgetGroupId)
-                .stream()
-                .map(budgetGroupMapper::toMemberResponse)
-                .toList();
+        log.info("service=BudgetMemberService action=listBudgetMembers start userId={} budgetGroupId={}", currentUser.getId(), budgetGroupId);
+        try {
+            BudgetGroup budgetGroup = requireBudgetGroup(budgetGroupId);
+            requireMemberAccess(budgetGroup, currentUser);
+            List<BudgetMemberResponse> response = budgetMemberRepository.findAllByBudgetGroupIdWithUser(budgetGroupId)
+                    .stream()
+                    .map(budgetGroupMapper::toMemberResponse)
+                    .toList();
+            log.info("service=BudgetMemberService action=listBudgetMembers success count={}", response.size());
+            return response;
+        } catch (RuntimeException ex) {
+            log.error("service=BudgetMemberService action=listBudgetMembers failure budgetGroupId={}", budgetGroupId, ex);
+            throw ex;
+        }
     }
 
     @Transactional
     public BudgetMemberResponse addBudgetMember(User currentUser, UUID budgetGroupId, BudgetMemberCreateRequest request) {
-        BudgetGroup budgetGroup = requireBudgetGroup(budgetGroupId);
-        requireManagerAccess(budgetGroup, currentUser);
+        log.info("service=BudgetMemberService action=addBudgetMember start userId={} budgetGroupId={}", currentUser.getId(), budgetGroupId);
+        try {
+            BudgetGroup budgetGroup = requireBudgetGroup(budgetGroupId);
+            requireManagerAccess(budgetGroup, currentUser);
 
-        User user = userRepository.findByEmailIgnoreCase(request.email().trim())
-                .orElseThrow(() -> new NotFoundException("User was not found."));
+            User user = userRepository.findByEmailIgnoreCase(request.email().trim())
+                    .orElseThrow(() -> new NotFoundException("User was not found."));
 
-        if (budgetMemberRepository.existsByBudgetGroupIdAndUserId(budgetGroupId, user.getId())) {
-            throw new ConflictException("User is already a budget group member.");
+            if (budgetMemberRepository.existsByBudgetGroupIdAndUserId(budgetGroupId, user.getId())) {
+                throw new ConflictException("User is already a budget group member.");
+            }
+
+            BudgetMember member = new BudgetMember();
+            member.setBudgetGroup(budgetGroup);
+            member.setUser(user);
+            member.setRole(toEntityRole(request.role()));
+
+            BudgetMemberResponse response = budgetGroupMapper.toMemberResponse(budgetMemberRepository.save(member));
+            log.info("service=BudgetMemberService action=addBudgetMember success budgetGroupId={}", budgetGroupId);
+            return response;
+        } catch (RuntimeException ex) {
+            log.error("service=BudgetMemberService action=addBudgetMember failure budgetGroupId={}", budgetGroupId, ex);
+            throw ex;
         }
-
-        BudgetMember member = new BudgetMember();
-        member.setBudgetGroup(budgetGroup);
-        member.setUser(user);
-        member.setRole(toEntityRole(request.role()));
-
-        return budgetGroupMapper.toMemberResponse(budgetMemberRepository.save(member));
     }
 
     @Transactional
@@ -66,7 +83,7 @@ public class BudgetMemberService {
         requireManagerAccess(budgetGroup, currentUser);
 
         BudgetMember member = budgetMemberRepository.findByIdAndBudgetGroupId(memberId, budgetGroupId)
-                .orElseThrow(() -> new NotFoundException("Budget member was not found."));
+                .orElseThrow(() -> new NotFoundException("Budget member was not found.", memberId == null ? null : memberId.toString()));
 
         if (member.getRole() == BudgetMemberRole.OWNER) {
             throw new AuthorizationException("Authenticated user is not allowed to access this resource.");
@@ -77,7 +94,7 @@ public class BudgetMemberService {
 
     private BudgetGroup requireBudgetGroup(UUID budgetGroupId) {
         return budgetGroupRepository.findById(budgetGroupId)
-                .orElseThrow(() -> new NotFoundException("Budget group was not found."));
+                .orElseThrow(() -> new NotFoundException("Budget group was not found.", budgetGroupId == null ? null : budgetGroupId.toString()));
     }
 
     private void requireMemberAccess(BudgetGroup budgetGroup, User currentUser) {

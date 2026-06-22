@@ -1,6 +1,7 @@
 package com.expensetracker.api.config;
 
 import com.expensetracker.api.security.JwtAuthenticationFilter;
+import com.expensetracker.api.security.RequestResponseLoggingFilter;
 import com.expensetracker.api.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RequestResponseLoggingFilter requestResponseLoggingFilter;
     private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
 
     @Bean
@@ -32,7 +34,8 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**").permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(requestResponseLoggingFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(jwtAuthenticationFilter, RequestResponseLoggingFilter.class)
                 .build();
     }
 
